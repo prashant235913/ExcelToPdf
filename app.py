@@ -1,18 +1,14 @@
+import os
 import streamlit as st
 import pandas as pd
 from pptx import Presentation
-import os
-from pptx.util import Pt
-from pptx.dml.color import RGBColor
-from fpdf import FPDF
+import subprocess
 
-st.set_page_config(page_title="Report Card Generator", layout="wide")
+st.set_page_config(page_title="📄 Report Card Generator", layout="wide")
 
-# UI Layout
-st.title("📄 Report Card Generator (Free Tool)")
+st.title("📄 Report Card Generator")
 st.write("Upload an **Excel file** and a **PowerPoint template** to generate personalized report cards.")
 
-# File Uploads
 excel_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"])
 pptx_file = st.file_uploader("📂 Upload PowerPoint Template", type=["pptx"])
 
@@ -23,19 +19,21 @@ def replace_text(slide, replacements):
     """Replace placeholders in PPTX."""
     for shape in slide.shapes:
         if shape.has_text_frame:
-            full_text = shape.text_frame.text
-            for key, value in replacements.items():
-                if key in full_text:
-                    full_text = full_text.replace(key, value)
-            shape.text_frame.text = full_text
+            for para in shape.text_frame.paragraphs:
+                for run in para.runs:
+                    for key, value in replacements.items():
+                        if key in run.text:
+                            run.text = run.text.replace(key, value)
 
 def convert_ppt_to_pdf(ppt_path, pdf_path):
-    """Convert PPT to PDF (Fake Conversion for Free Hosting)"""
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt="Generated Report Card", ln=True, align="C")
-    pdf.output(pdf_path)
+    """Convert PPTX to PDF using LibreOffice."""
+    try:
+        subprocess.run([
+            "libreoffice", "--headless", "--convert-to", "pdf", "--outdir", os.path.dirname(pdf_path), ppt_path
+        ], check=True)
+        print(f"✅ Converted {ppt_path} to {pdf_path}")
+    except Exception as e:
+        print(f"❌ Error converting {ppt_path} to PDF: {e}")
 
 if excel_file and pptx_file:
     df = pd.read_excel(excel_file)
@@ -64,6 +62,5 @@ if excel_file and pptx_file:
         convert_ppt_to_pdf(pptx_path, pdf_path)
 
         st.success(f"✅ {row['Student Name']}'s Report Card Generated!")
-        st.download_button("Download Report Card (PDF)", open(pdf_path, "rb"), file_name=f"{row['Student Name']}_Report_Card.pdf")
-
-st.write("🔹 This tool is **100% free** and runs on **Hugging Face Spaces**.")
+        with open(pdf_path, "rb") as pdf_file:
+            st.download_button("📥 Download Report Card (PDF)", pdf_file, file_name=f"{row['Student Name']}_Report_Card.pdf", mime="application/pdf")
